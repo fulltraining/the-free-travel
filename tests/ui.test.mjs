@@ -160,7 +160,7 @@ function pruebaViajes() {
   contiene(html, "Mis viajes", "hay título de la lista de viajes");
   contiene(html, "+ Nuevo viaje", "hay botón de nuevo viaje");
   contiene(html, "Datos y copias de seguridad", "están las copias de seguridad");
-  contiene(html, "Versión de la app: 1.0.0", "se ve la versión de la app");
+  contiene(html, "Versión de la app: 1.1.0", "se ve la versión de la app");
   contiene(html, "Exportar copia completa", "se puede exportar la copia");
   contiene(html, "2 cliente(s)", "el resumen del viaje cuenta 2 clientes");
 
@@ -222,7 +222,7 @@ function pruebaPresupuesto() {
   console.log("\n3. Presupuesto del grupo");
   S.vista = "presupuesto";
   const html = UI.htmlPresupuesto();
-  contiene(html, "Presupuesto del grupo", "título de la pantalla");
+  contiene(html, "Presupuesto previsto del grupo", "título de la pantalla");
   contiene(html, "Hotel", "aparece el concepto de hotel");
   contiene(html, "Presupuesto total", "muestra el presupuesto total");
   contiene(html, "320,00 €", "hotel 40 € × 2 × 4 = 320 €");
@@ -230,6 +230,11 @@ function pruebaPresupuesto() {
   contiene(html, "160,00 €", "coste medio 320 / 2 clientes = 160 €");
   contiene(html, "Pasar a gasto real", "se puede convertir una previsión en gasto real");
   contiene(html, "Gastos reales ya registrados", "separa lo previsto de lo real");
+  contiene(html, "Presupuesto previsto", "hay pestaña de presupuesto previsto");
+  contiene(html, "Gastos reales", "hay pestaña de gastos reales");
+  contiene(html, "Importe previsto", "cada concepto muestra su importe previsto");
+  contiene(html, "Gasto real acumulado", "cada concepto muestra su gasto real acumulado");
+  contiene(html, "Diferencia (real − previsto)", "cada concepto muestra la diferencia");
 
   const b = UI.nuevoBorradorConcepto(null);
   S.concepto = b;
@@ -253,7 +258,19 @@ function pruebaPresupuesto() {
   contiene(conPrevia, "480,00 €", "la previa calcula 40 × 3 × 4 = 480 €");
   S.concepto = null;
   S.vistaPreviaConcepto = null;
-  return Promise.resolve();
+
+  // Un pago real enlazado al hotel: se ve su previsión, lo gastado y lo que queda
+  return TFTDB.guardar("gastos", FT.crearGastoGrupo({ id: "gk", viajeId: "v1", categoria: "alojamiento", descripcion: "Reserva del hotel", importe: 120, forma: "transferencia", pagador: "bote", conceptoId: "k1" }))
+    .then(() => UI.recargar())
+    .then(() => {
+      const conReal = UI.htmlPresupuesto();
+      contiene(conReal, "120,00 €", "el gasto real acumulado del hotel es 120 €");
+      contiene(conReal, "1 gasto(s) real(es) enlazado(s)", "avisa de cuántos pagos hay enlazados");
+      contiene(conReal, "200,00 €", "el restante del hotel es 320 − 120 = 200 €");
+      contiene(conReal, "Gastos reales sin concepto", "separa los gastos sin presupuesto");
+      // Se retira el gasto para no alterar el resto de pruebas
+      return TFTDB.eliminar("gastos", "gk").then(() => UI.recargar());
+    });
 }
 
 /* ---------------- 4. gastos del grupo ---------------- */
@@ -267,12 +284,16 @@ function pruebaGastos() {
   contiene(html, "Cena del grupo", "aparece la cena");
   contiene(html, "Gasto real total", "muestra el gasto real total");
   contiene(html, "210,00 €", "gasto real 120 + 90 = 210 €");
-  contiene(html, "Desviación (real − previsto)", "muestra la desviación");
+  contiene(html, "Sobrecoste (real − previsto)", "muestra el sobrecoste");
   contiene(html, "Adelantos pendientes de reembolso", "muestra los adelantos pendientes");
   contiene(html, "90,00 €", "el adelanto de la cena está pendiente");
   contiene(html, "Paga: Bote común", "indica quién pagó la gasolina");
   contiene(html, "Paga: Yo (organizador)", "indica que yo pagué la cena");
   contiene(html, "+ Registrar gasto", "hay botón de registrar gasto");
+  contiene(html, "Presupuesto previsto y gasto real por concepto", "muestra la tabla por concepto");
+  contiene(html, "Gasto real acumulado", "la tabla incluye el gasto real acumulado");
+  contiene(html, "Diferencia", "la tabla incluye la diferencia");
+  contiene(html, "Gastos reales sin concepto (no previstos)", "separa los gastos no previstos");
 
   const b = UI.nuevoBorradorGasto(null);
   S.gasto = b;
@@ -282,15 +303,38 @@ function pruebaGastos() {
   contiene(form, "Yo (organizador)", "me ofrece a mí");
   contiene(form, "Concepto del presupuesto (opcional)", "permite enlazar con el presupuesto");
   contiene(form, "Forma de pago", "el gasto pide la forma de pago");
-  S.gasto = null;
+  contiene(form, "Gasto no previsto", "mantiene la opción de gasto no previsto");
+  contiene(form, "Hotel", "carga los conceptos del presupuesto del viaje");
+  contiene(form, "Alojamientos", "cada opción muestra la categoría");
+  contiene(form, "Previsto: 320,00 €", "cada opción muestra el importe previsto");
+  contiene(form, "varios pagos al mismo concepto", "explica que se pueden enlazar varios pagos");
 
-  // Reembolso: se registra sin volver a contar el gasto
-  S.reembolso = { gastoId: "g2", beneficiario: "yo", importe: "90", fecha: "2026-10-10T10:00", forma: "transferencia", observaciones: "", errores: [] };
-  const fr = UI.htmlGastos();
-  contiene(fr, "Reembolso a quien adelantó", "se abre el formulario de reembolso");
-  contiene(fr, "El reembolso no cuenta como gasto nuevo", "avisa de que no se cuenta dos veces");
-  S.reembolso = null;
-  return Promise.resolve();
+  // Al elegir un concepto se ve su previsión, lo gastado y lo que queda.
+  S.gasto.conceptoId = "k1";
+  const conConcepto = UI.htmlGastos();
+  contiene(conConcepto, "Previsto: <strong>320,00 €</strong>", "muestra la previsión del concepto elegido");
+  contiene(conConcepto, "Gasto real acumulado: <strong>0,00 €</strong>", "muestra el gasto real acumulado del concepto");
+  contiene(conConcepto, "Restante: <strong>320,00 €</strong>", "muestra cuánto queda por gastar");
+
+  // Sin presupuesto: avisa y ofrece crearlo.
+  const conceptosGuardados = STORE.conceptos.slice();
+  STORE.conceptos = [];
+  return UI.recargar().then(() => {
+    const sinPresupuesto = UI.htmlGastos();
+    contiene(sinPresupuesto, "No hay presupuesto creado", "sin conceptos avisa de que no hay presupuesto");
+    contiene(sinPresupuesto, "+ Añadir concepto", "ofrece añadir un concepto sin perder lo escrito");
+    STORE.conceptos = conceptosGuardados;
+    S.gasto = null;
+    return UI.recargar();
+  }).then(() => {
+    // Reembolso: se registra sin volver a contar el gasto
+    S.reembolso = { gastoId: "g2", beneficiario: "yo", importe: "90", fecha: "2026-10-10T10:00", forma: "transferencia", observaciones: "", errores: [] };
+    const fr = UI.htmlGastos();
+    contiene(fr, "Reembolso a quien adelantó", "se abre el formulario de reembolso");
+    contiene(fr, "El reembolso no cuenta como gasto nuevo", "avisa de que no se cuenta dos veces");
+    S.reembolso = null;
+    return Promise.resolve();
+  });
 }
 
 /* ---------------- 5. mis gastos y honorarios ---------------- */
@@ -341,7 +385,7 @@ function pruebaResumen() {
   contiene(html, "Número de clientes", "muestra el número de clientes");
   contiene(html, "Presupuesto del grupo", "muestra el presupuesto");
   contiene(html, "Gasto real del grupo", "muestra el gasto real");
-  contiene(html, "Desviación", "muestra la desviación");
+  contiene(html, "Sobrecoste (real − presupuesto)", "muestra el sobrecoste");
   contiene(html, "Coste medio por cliente", "muestra el coste medio");
   contiene(html, "Gastos reales por categoría", "desglosa por categoría");
   contiene(html, "Dinero disponible del bote", "muestra el bote disponible");
@@ -490,10 +534,78 @@ function pruebaSinViajes() {
   const html = UI.htmlViajes();
   contiene(html, "Todavía no hay viajes", "avisa de que no hay viajes");
   contiene(html, "+ Crear un viaje", "invita a crear el primero");
-  contiene(html, "Versión de la app: 1.0.0", "aun sin viajes se ve la versión");
+  contiene(html, "Versión de la app: 1.1.0", "aun sin viajes se ve la versión");
   S.datos.viajes = guardados;
   S.viajeId = "vf";
   return Promise.resolve();
+}
+
+/* ---------------- 11. presupuesto y vinculación: guardado y recarga ---------------- */
+
+function pruebaPresupuestoPersistente() {
+  console.log("\n11. Presupuesto y vinculación tras recargar");
+  // Se parte de un viaje limpio con un cliente.
+  STORE.viajes = [FT.crearViaje({ id: "vp", nombre: "Viaje con presupuesto", destino: "Chefchaouen", inicio: "2026-10-01", fin: "2026-10-05", moneda: "EUR" })];
+  STORE.clientes = [FT.crearCliente({ id: "pc1", viajeId: "vp", nombre: "Ana", apellidos: "García" })];
+  STORE.aportaciones = []; STORE.conceptos = []; STORE.gastos = [];
+  STORE.reembolsos = []; STORE.devoluciones = []; STORE.gastosPersonales = []; STORE.honorarios = [];
+  S.viajeId = "vp";
+  S.gasto = null; S.concepto = null; S.reembolso = null; S.devolucion = null;
+
+  // 1) Sin presupuesto: avisa y no marca sobrecoste.
+  return UI.recargar().then(() => {
+    const sinPresu = UI.htmlGastos();
+    contiene(sinPresu, "Sin presupuesto definido", "sin presupuesto se avisa en vez de marcar sobrecoste");
+    S.pestanaGastos = "previsto";
+    const tabPrev = UI.htmlPresupuesto();
+    contiene(tabPrev, "Sin presupuesto definido", "la pestaña de previsto también avisa de que no hay presupuesto");
+    contiene(tabPrev, "+ Añadir concepto", "desde la pestaña previsto se puede añadir concepto");
+
+    // 2) Se añade un concepto (equivale a rellenar el formulario y guardar).
+    return TFTDB.guardar("conceptos", FT.crearConcepto({ id: "pk1", viajeId: "vp", categoria: "transporte", tipo: "total", descripcion: "Minibús con conductor", precio: 1200, moneda: "EUR" })).then(() => UI.recargar());
+  })
+  .then(() => {
+    // 3) El presupuesto se conserva y ya no aparece el aviso.
+    S.pestanaGastos = "previsto";
+    const conPresu = UI.htmlPresupuesto();
+    contiene(conPresu, "Minibús con conductor", "el concepto sigue tras recargar");
+    contiene(conPresu, "1.200,00 €", "el presupuesto previsto es 1.200 €");
+    noContiene(conPresu, "Sin presupuesto definido", "con presupuesto desaparece el aviso");
+    return null;
+  })
+  .then(() => {
+    // 4) Se registra un pago real enlazado al concepto (una reserva).
+    return TFTDB.guardar("gastos", FT.crearGastoGrupo({ id: "pg1", viajeId: "vp", categoria: "transporte", descripcion: "Reserva minibús", importe: 300, forma: "transferencia", pagador: "bote", conceptoId: "pk1" })).then(() => UI.recargar());
+  })
+  .then(() => {
+    S.pestanaGastos = "real";
+    const conPago = UI.htmlGastos();
+    contiene(conPago, "previsto: Minibús con conductor", "el gasto conserva su concepto vinculado tras recargar");
+    contiene(conPago, "300,00 €", "el gasto real acumulado del concepto es 300 €");
+    contiene(conPago, "900,00 €", "queda 1.200 − 300 = 900 € por gastar");
+    // 5) Al editar ese gasto, no se cuenta dos veces: sigue viéndose la reserva,
+    //    pero el acumulado previo para el formulario excluye el gasto en edición.
+    S.gasto = UI.nuevoBorradorGasto(STORE.gastos.filter((g) => g.id === "pg1")[0]);
+    const alEditar = UI.htmlGastos();
+    contiene(alEditar, "Reserva minibús", "al editar se recupera la descripción");
+    contiene(alEditar, "Previsto: <strong>1.200,00 €</strong>", "al editar se ve la previsión del concepto");
+    contiene(alEditar, "Gasto real acumulado: <strong>0,00 €</strong>", "al editar no se cuenta el propio gasto dos veces");
+    S.gasto = null;
+    return UI.recargar();
+  })
+  .then(() => {
+    // 6) La tabla de comparación del resumen cuadra.
+    S.pestanaGastos = "real";
+    S.vista = "resumen";
+    const res = UI.htmlResumen();
+    contiene(res, "Presupuesto previsto y gasto real por concepto", "el resumen compara previsto y real");
+    contiene(res, "Minibús con conductor", "el resumen nombra el concepto");
+    contiene(res, "1.200,00 €", "el resumen muestra el importe previsto");
+    contiene(res, "300,00 €", "el resumen muestra el gasto real acumulado");
+    contiene(res, "-900,00 €", "la diferencia es real − previsto: 300 − 1.200 = −900 €");
+    S.vista = "gastos";
+    return null;
+  });
 }
 
 /* ---------------- ejecución encadenada ---------------- */
@@ -511,6 +623,7 @@ UI.recargar()
   .then(() => pruebaFlujoAcciones())
   .then(() => pruebaMenu())
   .then(() => pruebaSinViajes())
+  .then(() => pruebaPresupuestoPersistente())
   .then(() => {
     console.log("\n" + "=".repeat(50));
     console.log(`Pruebas: ${pruebas}   Fallos: ${fallos}`);

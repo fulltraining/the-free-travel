@@ -14,7 +14,7 @@
    ============================================================ */
 
 globalThis.FTUI = (function () {
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
 
   /* ---------------- estado ---------------- */
 
@@ -25,6 +25,8 @@ globalThis.FTUI = (function () {
 
   const S = {
     vista: "viajes",
+    // Gastos del grupo tiene dos pestañas: presupuesto previsto y gastos reales.
+    pestanaGastos: "real",
     viajeId: null,
     cargando: true,
     datos: {
@@ -45,6 +47,8 @@ globalThis.FTUI = (function () {
     filtros: { clientes: "", gastos: "", categoriaGasto: "" },
     // cálculo en vivo del presupuesto (se muestra antes de guardar)
     vistaPreviaConcepto: null,
+    // al añadir un concepto desde el formulario de gasto, se vuelve a él
+    volverAGastoTrasConcepto: false,
     // menú lateral abierto
     menuAbierto: false,
   };
@@ -493,24 +497,46 @@ globalThis.FTUI = (function () {
     };
   }
 
+  function htmlPestanasGastos(activa) {
+    const t = [
+      { id: "previsto", texto: "Presupuesto previsto" },
+      { id: "real", texto: "Gastos reales" },
+    ];
+    return `<div class="pestanas" role="tablist" aria-label="Gastos del grupo">` +
+      t.map((x) => `<button type="button" role="tab" class="pestana${x.id === activa ? " activa" : ""}" data-accion="pestana-gastos" data-valor="${x.id}" aria-selected="${x.id === activa}">${esc(x.texto)}</button>`).join("") +
+      `</div>`;
+  }
+
   function htmlPresupuesto() {
     const v = conViaje();
     if (!v.id) return `<p class="vacio">Abre un viaje para preparar su presupuesto.</p>`;
     if (S.concepto) return htmlFormularioConcepto();
-
     const r = resumen();
     const p = r.presupuesto;
+    const acumulado = FT.gastoRealPorConcepto({
+      viajeId: S.viajeId, conceptos: S.datos.conceptos, gastos: S.datos.gastos,
+      personas: r.nClientes, noches: r.noches,
+    });
     const bloques = FT.CATEGORIAS_ORDEN.map((k) => {
       const items = conceptos().filter((c) => c.categoria === k).map((c) => {
         const calc = FT.calcularConcepto(c, { personasViaje: r.nClientes, noches: r.noches });
+        const info = acumulado[c.id];
         const prov = c.proveedor ? ` · ${esc(c.proveedor)}` : "";
         const cambio = c.moneda !== FT.MONEDA_BASE ? ` · ${esc(FT.etiquetaCambio(c.moneda, c.cambio))}` : "";
-        const yaGastado = gastos().some((g) => g.conceptoId === c.id);
         return `<li>
           <div class="item-cabecera"><span class="item-titulo">${esc(c.descripcion)}</span><span class="item-importe">${esc(FT.formatearMoneda(calc.importe, c.moneda))}</span></div>
           <div class="item-meta">${esc(FT.nombreTipoCalculo(c.tipo))} · ${esc(calc.formula)} · ${esc(FT.fechaCorta(c.fecha))}${prov}${cambio}</div>
-          <div class="item-meta">En euros: ${esc(euros(calc.importeEuros))}${calc.personasCubiertas ? " · cubre " + calc.personasCubiertas + " persona(s)" : ""}${yaGastado ? ` <span class="insignia">con gasto real</span>` : ""}</div>
+          <div class="item-meta">En euros: ${esc(euros(calc.importeEuros))}${calc.personasCubiertas ? " · cubre " + calc.personasCubiertas + " persona(s)" : ""}</div>
+          <ul class="cifras">
+            ${filaCifra("Importe previsto", euros(info.previsto))}
+            ${filaCifra("Gasto real acumulado", euros(info.real))}
+            ${filaCifra("Diferencia (real − previsto)", euros(info.diferencia), info.diferencia > 0 ? "negativa" : "positiva")}
+          </ul>
+          <div class="item-meta">${info.nGastos > 0
+            ? `<span class="insignia insignia-ok">${info.nGastos} gasto(s) real(es) enlazado(s)</span>`
+            : `<span class="insignia">sin gasto real todavía</span>`}</div>
           <div class="item-acciones">
+            ${botonPequeno("pestana-gastos", "real", "Ver gastos reales", "btn-ghost")}
             ${botonPequeno("concepto-editar", c.id, "Editar", "btn-ghost")}
             ${botonPequeno("concepto-eliminar", c.id, "Eliminar", "btn-ghost")}
             ${botonPequeno("concepto-a-gasto", c.id, "Pasar a gasto real", "btn-secundario")}
@@ -523,21 +549,24 @@ globalThis.FTUI = (function () {
     }).join("");
 
     const gastado = gastosGrupoEuros();
-    return `<div class="tarjeta">
-      <h2 class="tarjeta-titulo">Presupuesto del grupo</h2>
+    const sinConcepto = FT.gastoRealSinConcepto({ viajeId: S.viajeId, gastos: S.datos.gastos });
+    const hayPresupuesto = p.total > 0;
+    return `${htmlPestanasGastos("previsto")}<div class="tarjeta">
+      <h2 class="tarjeta-titulo">Presupuesto previsto del grupo</h2>
       <p class="tarjeta-sub">Lo que está previsto gastar. Son estimaciones: no se mezclan con los gastos reales.</p>
       ${boton("concepto-nuevo", "", "+ Añadir concepto", "btn-verde")}
-      <ul class="cifras">
+      ${hayPresupuesto ? `<ul class="cifras">
         ${filaCifra("Presupuesto total", euros(p.total), "destacada")}
         ${filaCifra("Clientes", String(r.nClientes))}
         ${filaCifra("Coste medio por cliente", euros(p.costeMedio))}
         ${filaCifra("Gastos reales ya registrados", euros(gastado))}
-        ${filaCifra("Diferencia previsto − real", euros(FT.redondear(p.total - gastado, 2)))}
+        ${filaCifra("Gastos reales sin concepto", euros(sinConcepto))}
+        ${filaCifra("Sobrecoste real (real − previsto)", euros(r.desviacion), r.desviacion > 0 ? "negativa" : "positiva")}
         ${filaCifra("Desviación sobre el presupuesto", (r.desviacionPct > 0 ? "+" : "") + r.desviacionPct + " %")}
-      </ul>
+      </ul>` : `<p class="nota nota-vacio" id="sin-presupuesto">Sin presupuesto definido. Añade conceptos para comparar lo previsto con lo gastado.</p>`}
       <p class="nota">Los conceptos del presupuesto y los gastos reales se llevan aparte para no sumarlos dos veces. Cuando una previsión se convierte en pago, usa «Pasar a gasto real».</p>
     </div>
-    ${bloques}`;
+    ${hayPresupuesto ? bloques : ""}`;
   }
 
   function gastosGrupoEuros() {
@@ -622,6 +651,9 @@ globalThis.FTUI = (function () {
     if (S.gasto) return htmlFormularioGasto();
     if (S.reembolso) return htmlFormularioReembolso();
     if (S.devolucion) return htmlFormularioDevolucion();
+    // Las dos pestañas viven dentro de «Gastos del grupo».
+    if (S.concepto) return htmlFormularioConcepto();
+    if (S.pestanaGastos === "previsto") return htmlPresupuesto();
 
     const r = resumen();
     const porGasto = {};
@@ -653,22 +685,71 @@ globalThis.FTUI = (function () {
       filaCifra(FT.nombreCategoria(k), euros(r.gastos.porCategoria[k].total))
     ).join("");
 
-    return `<div class="tarjeta">
+    const hayPresupuesto = r.presupuesto.total > 0;
+    const acumulado = FT.gastoRealPorConcepto({
+      viajeId: S.viajeId, conceptos: S.datos.conceptos, gastos: S.datos.gastos,
+      personas: r.nClientes, noches: r.noches,
+    });
+    const comparativa = comparativaPresupuesto(r, acumulado);
+
+    return `${htmlPestanasGastos("real")}<div class="tarjeta">
       <h2 class="tarjeta-titulo">Gastos reales del grupo</h2>
       <p class="tarjeta-sub">Pagos que ya se han hecho. Se llevan aparte del presupuesto para no contar dos veces.</p>
       ${boton("gasto-nuevo", "", "+ Registrar gasto", "btn-verde")}
       ${campo("Filtrar por categoría", `<select id="filtro-categoria-gasto"><option value="">Todas las categorías</option>${opcionesCategoria(S.filtros.categoriaGasto, FT.CATEGORIAS)}</select>`)}
       <ul class="cifras">
         ${filaCifra("Gasto real total", euros(r.gastos.total), "destacada")}
-        ${filaCifra("Presupuesto previsto", euros(r.presupuesto.total))}
-        ${filaCifra("Desviación (real − previsto)", euros(r.desviacion), r.desviacion > 0 ? "negativa" : "positiva")}
+        ${hayPresupuesto ? filaCifra("Presupuesto previsto", euros(r.presupuesto.total)) : ""}
+        ${hayPresupuesto
+          ? filaCifra("Sobrecoste (real − previsto)", euros(r.desviacion), r.desviacion > 0 ? "negativa" : "positiva")
+          : filaCifra("Presupuesto previsto", "Sin presupuesto definido")}
       </ul>
+      ${hayPresupuesto ? "" : `<p class="nota" id="sin-presupuesto">Sin presupuesto definido. ${botonPequeno("pestana-gastos", "previsto", "Ir al presupuesto previsto", "btn-secundario")}</p>`}
       <h3 class="seccion-titulo">Por categoría</h3>
       <ul class="cifras">${porCategoria}</ul>
     </div>
 
+    ${comparativa}
+
     ${htmlAdelantos(r)}
     <ul class="lista">${lista || `<li class="vacio">Todavía no hay gastos registrados.</li>`}</ul>`;
+  }
+
+  /**
+   * Tabla de comparación previsto / real por concepto.
+   * Solo se dibuja si hay conceptos de presupuesto. La diferencia es
+   * gasto real − importe previsto: positiva quiere decir sobrecoste.
+   */
+  function comparativaPresupuesto(r, acumulado) {
+    const lista = conceptos();
+    if (lista.length === 0) return "";
+    const filas = lista.map((c) => {
+      const info = acumulado[c.id];
+      const cat = FT.nombreCategoria(c.categoria);
+      return `<tr>
+        <td>${esc(c.descripcion)}<br><span class="tabla-sub">${esc(cat)}</span></td>
+        <td class="num">${esc(euros(info.previsto))}</td>
+        <td class="num">${esc(euros(info.real))}</td>
+        <td class="num ${info.diferencia > 0 ? "negativa" : "positiva"}">${esc(euros(info.diferencia))}</td>
+      </tr>`;
+    }).join("");
+    const sinConcepto = FT.gastoRealSinConcepto({ viajeId: S.viajeId, gastos: S.datos.gastos });
+    return `<div class="tarjeta">
+      <h2 class="tarjeta-titulo">Presupuesto previsto y gasto real por concepto</h2>
+      <p class="tarjeta-sub">La diferencia es gasto real − presupuesto: positiva significa sobrecoste.</p>
+      <div class="tabla-envoltorio">
+        <table class="tabla">
+          <thead><tr><th>Descripción</th><th class="num">Importe previsto</th><th class="num">Gasto real acumulado</th><th class="num">Diferencia</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+      <ul class="cifras">
+        ${filaCifra("Total previsto", euros(r.presupuesto.total))}
+        ${filaCifra("Gasto real en conceptos", euros(r.gastos.total - sinConcepto))}
+        ${filaCifra("Gastos reales sin concepto (no previstos)", euros(sinConcepto))}
+        ${filaCifra("Total gasto real", euros(r.gastos.total), "destacada")}
+      </ul>
+    </div>`;
   }
 
   function htmlAdelantos(r) {
@@ -692,6 +773,48 @@ globalThis.FTUI = (function () {
     </div>`;
   }
 
+  /**
+   * Campo «Concepto del presupuesto» del formulario de gastos reales.
+   *
+   * Carga los conceptos del viaje activo con descripción, categoría e
+   * importe previsto. Al elegir uno se enseña su previsión, lo ya gastado
+   * (sin contar el gasto que se está editando) y lo que queda o se ha
+   * pasado. Si no hay conceptos, invita a crear uno conservando lo escrito.
+   */
+  function campoConceptoDelGasto(b) {
+    const lista = conceptos();
+    const v = conViaje();
+    if (lista.length === 0) {
+      return campo("Concepto del presupuesto",
+        `<select id="gasto-concepto" disabled><option value="">No hay presupuesto creado</option></select>` +
+        `<p class="campo-ayuda">No hay presupuesto creado para este viaje.</p>` +
+        `<p class="campo-ayuda">Lo que ya hayas escrito seguirá aquí al volver. ${botonPequeno("concepto-nuevo-desde-gasto", "", "+ Añadir concepto", "btn-secundario")}</p>`);
+    }
+    const r = resumen();
+    const acumulado = FT.gastoRealPorConcepto({
+      viajeId: S.viajeId, conceptos: S.datos.conceptos, gastos: S.datos.gastos,
+      personas: r.nClientes, noches: r.noches, excluirGastoId: b.id || "",
+    });
+    const opciones = lista.map((c) => {
+      const info = acumulado[c.id];
+      return `<option value="${c.id}"${c.id === b.conceptoId ? " selected" : ""}>` +
+        `${esc(c.descripcion)} · ${esc(FT.nombreCategoria(c.categoria))} · Previsto: ${esc(FT.formatearMoneda(info.previsto, c.moneda))}</option>`;
+    }).join("");
+    const elegido = b.conceptoId ? acumulado[b.conceptoId] : null;
+    const resumenConcepto = elegido
+      ? `<p class="campo-ayuda" id="gasto-concepto-detalle">Previsto: <strong>${esc(euros(elegido.previsto))}</strong> · ` +
+        `Gasto real acumulado: <strong>${esc(euros(elegido.real))}</strong> · ` +
+        (elegido.diferencia > 0
+          ? `Sobrecoste: <strong>${esc(euros(elegido.diferencia))}</strong>`
+          : `Restante: <strong>${esc(euros(-elegido.diferencia))}</strong>`) +
+        (elegido.nGastos > 0 ? ` · ${elegido.nGastos} pago(s) ya enlazado(s)` : "") + `</p>`
+      : "";
+    return campo("Concepto del presupuesto (opcional)",
+      `<select id="gasto-concepto"><option value=""${!b.conceptoId ? " selected" : ""}>Gasto no previsto</option>${opciones}</select>` +
+      `<p class="campo-ayuda">Puedes enlazar varios pagos al mismo concepto (una reserva y el pago final, por ejemplo).</p>` +
+      resumenConcepto);
+  }
+
   function htmlFormularioGasto() {
     const b = S.gasto;
     return `<div class="tarjeta">
@@ -708,7 +831,7 @@ globalThis.FTUI = (function () {
       ${campo("Forma de pago", `<select id="gasto-forma">${opcionesFormaPago(b.forma, true)}</select>`)}
       ${campo("Quién lo ha pagado", `<select id="gasto-pagador"><option value="bote"${b.pagador === "bote" ? " selected" : ""}>Bote común</option><option value="yo"${b.pagador === "yo" ? " selected" : ""}>Yo (organizador)</option><option value="cliente"${b.pagador === "cliente" ? " selected" : ""}>Un cliente</option></select>`)}
       ${b.pagador === "cliente" ? campo("Cliente que paga", `<select id="gasto-cliente">${opcionesClientes(b.clienteId, true)}</select>`) : ""}
-      ${campo("Concepto del presupuesto (opcional)", `<select id="gasto-concepto"><option value="">— Ninguno —</option>${conceptos().map((c) => `<option value="${c.id}"${c.id === b.conceptoId ? " selected" : ""}>${esc(c.descripcion)}</option>`).join("")}</select>`)}
+      ${campoConceptoDelGasto(b)}
       ${campo("Observaciones", `<textarea id="gasto-observaciones">${esc(b.observaciones)}</textarea>`)}
       <div class="fila-botones">
         ${boton("gasto-guardar", "", "Guardar gasto", "btn-verde")}
@@ -946,19 +1069,33 @@ globalThis.FTUI = (function () {
       "gastos " + FT.formatearMoneda(m.gastosGrupo, m.moneda) + " = " + euros(m.gastosGrupoEuros)
     )).join("");
 
+    const hayPresupuesto = r.presupuesto.total > 0;
+    const acumulado = FT.gastoRealPorConcepto({
+      viajeId: S.viajeId, conceptos: S.datos.conceptos, gastos: S.datos.gastos,
+      personas: r.nClientes, noches: r.noches,
+    });
+    const comparativa = comparativaPresupuesto(r, acumulado);
+
     return `<div class="tarjeta">
       <h2 class="tarjeta-titulo">${esc(v.nombre)}</h2>
       <p class="tarjeta-sub">${esc(v.destino)} · ${esc(FT.fechaCorta(v.inicio))} – ${esc(FT.fechaCorta(v.fin))} · ${r.duracion} día(s), ${r.noches} noche(s)</p>
       <ul class="cifras">
         ${filaCifra("Número de clientes", String(r.nClientes), "destacada")}
-        ${filaCifra("Presupuesto del grupo", euros(r.presupuesto.total))}
+        ${hayPresupuesto
+          ? filaCifra("Presupuesto del grupo", euros(r.presupuesto.total))
+          : filaCifra("Presupuesto del grupo", "Sin presupuesto definido")}
         ${filaCifra("Gasto real del grupo", euros(r.gastos.total))}
-        ${filaCifra("Desviación (presupuesto − real)", euros(FT.redondear(r.presupuesto.total - r.gastos.total, 2)), r.desviacion > 0 ? "negativa" : "positiva")}
+        ${hayPresupuesto
+          ? filaCifra("Sobrecoste (real − presupuesto)", euros(r.desviacion), r.desviacion > 0 ? "negativa" : "positiva")
+          : filaCifra("Presupuesto previsto", "Sin presupuesto definido")}
         ${filaCifra("Coste medio por cliente", euros(r.presupuesto.costeMedio))}
       </ul>
+      ${hayPresupuesto ? "" : `<p class="nota">Sin presupuesto definido: todavía no hay previsiones con las que comparar el gasto real.</p>`}
       <h3 class="seccion-titulo">Gastos reales por categoría</h3>
       <ul class="cifras">${porCat}</ul>
     </div>
+
+    ${comparativa}
 
     <div class="tarjeta">
       <h2 class="tarjeta-titulo">Bote común</h2>
@@ -1045,7 +1182,7 @@ globalThis.FTUI = (function () {
     if (S.menuAbierto) return htmlMenu();
     // Formularios abiertos tienen prioridad dentro de su pantalla.
     if (S.vista === "viajes") return S.viaje ? htmlFormularioViaje() : htmlViajes();
-    if (S.vista === "presupuesto") return htmlPresupuesto();
+    if (S.vista === "presupuesto") { S.pestanaGastos = "previsto"; return htmlPresupuesto(); }
     if (S.vista === "clientes") return htmlClientes();
     if (S.vista === "gastos") return htmlGastos();
     if (S.vista === "mios") return htmlMios();
@@ -1320,6 +1457,30 @@ globalThis.FTUI = (function () {
   function accionConceptoNuevo() {
     S.concepto = nuevoBorradorConcepto(null);
     S.vistaPreviaConcepto = null;
+    S.volverAGastoTrasConcepto = false;
+    render();
+  }
+
+  /**
+   * Abre el formulario de concepto desde el formulario de gasto sin perder
+   * lo escrito: al guardar o cancelar se vuelve al gasto.
+   */
+  function accionConceptoNuevoDesdeGasto() {
+    if (S.gasto) leerGastoParcial();
+    S.concepto = nuevoBorradorConcepto(null);
+    S.vistaPreviaConcepto = null;
+    S.volverAGastoTrasConcepto = true;
+    S.pestanaGastos = "previsto";
+    render();
+  }
+
+  function accionConceptoCancelar() {
+    S.concepto = null;
+    S.vistaPreviaConcepto = null;
+    const volver = S.volverAGastoTrasConcepto && S.gasto;
+    S.volverAGastoTrasConcepto = false;
+    S.pestanaGastos = volver ? "real" : "previsto";
+    S.vista = "gastos";
     render();
   }
 
@@ -1357,8 +1518,23 @@ globalThis.FTUI = (function () {
     leerConceptoDeFormulario();
     const errores = FT.validarConcepto(S.concepto);
     if (errores.length) { S.concepto.errores = errores; render(); return; }
-    return TFTDB.guardar("conceptos", FT.crearConcepto(Object.assign({ viajeId: S.viajeId }, S.concepto)))
-      .then(() => recargar()).then(() => { S.concepto = null; S.vistaPreviaConcepto = null; avisar("Concepto guardado"); render(); });
+    const eraNuevo = !S.concepto.id;
+    const concepto = FT.crearConcepto(Object.assign({ viajeId: S.viajeId }, S.concepto));
+    return TFTDB.guardar("conceptos", concepto)
+      .then(() => recargar()).then(() => {
+        S.concepto = null;
+        S.vistaPreviaConcepto = null;
+        // Si se venía del formulario de gasto, se vuelve a él con lo escrito y,
+        // para uno nuevo, se enlaza directamente el gasto con el concepto recién creado.
+        if (S.volverAGastoTrasConcepto && S.gasto) {
+          S.volverAGastoTrasConcepto = false;
+          if (eraNuevo) S.gasto.conceptoId = concepto.id;
+        }
+        S.pestanaGastos = S.gasto ? "real" : "previsto";
+        S.vista = "gastos";
+        avisar("Concepto guardado");
+        render();
+      });
   }
 
   function accionConceptoEliminar(id) {
@@ -1375,13 +1551,24 @@ globalThis.FTUI = (function () {
     });
     S.gasto = borrador;
     S.vista = "gastos";
+    S.pestanaGastos = "real";
     render();
   }
 
   /* ---------------- acciones: gastos del grupo ---------------- */
 
+  /** Cambia entre las pestañas «Presupuesto previsto» y «Gastos reales». */
+  function accionPestanaGastos(valor) {
+    S.pestanaGastos = valor === "previsto" ? "previsto" : "real";
+    S.concepto = null;
+    S.vistaPreviaConcepto = null;
+    S.vista = "gastos";
+    render();
+  }
+
   function accionGastoNuevo() {
     S.gasto = nuevoBorradorGasto(null);
+    S.pestanaGastos = "real";
     render();
   }
 
@@ -1570,7 +1757,7 @@ globalThis.FTUI = (function () {
 
   function ejecutar(accion, valor) {
     switch (accion) {
-      case "vista": S.vista = valor; S.menuAbierto = false; render(); break;
+      case "vista": S.vista = valor; S.menuAbierto = false; if (valor === "gastos") S.pestanaGastos = "real"; if (valor === "presupuesto") S.pestanaGastos = "previsto"; render(); break;
       case "menu": S.menuAbierto = !S.menuAbierto; render(); break;
       // viajes
       case "viaje-nuevo": accionViajeNuevo(); break;
@@ -1604,13 +1791,15 @@ globalThis.FTUI = (function () {
       case "devolucion-eliminar": accionDevolucionEliminar(valor); break;
       // presupuesto
       case "concepto-nuevo": accionConceptoNuevo(); break;
+      case "concepto-nuevo-desde-gasto": accionConceptoNuevoDesdeGasto(); break;
       case "concepto-editar": accionConceptoEditar(valor); break;
       case "concepto-previa": accionConceptoPrevia(); break;
       case "concepto-guardar": accionConceptoGuardar(); break;
-      case "concepto-cancelar": S.concepto = null; S.vistaPreviaConcepto = null; render(); break;
+      case "concepto-cancelar": accionConceptoCancelar(); break;
       case "concepto-eliminar": accionConceptoEliminar(valor); break;
       case "concepto-a-gasto": accionConceptoAGasto(valor); break;
       // gastos del grupo
+      case "pestana-gastos": accionPestanaGastos(valor); break;
       case "gasto-nuevo": accionGastoNuevo(); break;
       case "gasto-editar": accionGastoEditar(valor); break;
       case "gasto-guardar": accionGastoGuardar(); break;
@@ -1668,6 +1857,15 @@ globalThis.FTUI = (function () {
     if (el.id === "concepto-tipo") { accionConceptoPrevia(); return; }
     if (el.id === "gasto-pagador") {
       if (S.gasto) { S.gasto.pagador = el.value; leerGastoParcial(); render(); }
+      return;
+    }
+    if (el.id === "gasto-concepto") {
+      // Al cambiar de concepto se conserva lo ya escrito y se enseña su previsión.
+      if (S.gasto) { S.gasto.conceptoId = el.value; leerGastoParcial(); render(); }
+      return;
+    }
+    if (el.id === "gasto-moneda") {
+      if (S.gasto) { S.gasto.moneda = el.value; S.gasto.cambio = String(FT.tipoCambio(el.value)); render(); }
       return;
     }
     if (el.id === "reembolso-gasto") {

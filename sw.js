@@ -8,7 +8,7 @@
    ============================================================ */
 "use strict";
 
-const CACHE = "the-free-travel-cache-v1";
+const CACHE = "the-free-travel-cache-v2";
 
 const APP_SHELL = [
   "./",

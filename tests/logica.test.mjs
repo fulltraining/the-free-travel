@@ -301,6 +301,41 @@ const gMioCubierto = FT.crearGastoGrupo({ id: "g5", viajeId: "v1", categoria: "o
 ok(!FT.gastoGrupoCuentaComoGasto(gMioCubierto), "un gasto personal no se cuenta como gasto del grupo");
 ok(FT.gastoGrupoCuentaComoGasto(gYo), "un gasto normal sí cuenta como gasto del grupo");
 
+/* ---------------- 7bis. gasto real por concepto ---------------- */
+
+console.log("\n7bis. Gasto real por concepto del presupuesto");
+const conceptoFurgo = FT.crearConcepto({ id: "kf", viajeId: "v1", categoria: "transporte", tipo: "total", descripcion: "Furgoneta", precio: 600, moneda: "EUR" });
+const conceptoRiad = FT.crearConcepto({ id: "kr", viajeId: "v1", categoria: "alojamiento", tipo: "total", descripcion: "Riad", precio: 5400, moneda: "MAD", cambio: 10.8 });
+const gastosConcepto = [
+  FT.crearGastoGrupo({ id: "gk1", viajeId: "v1", categoria: "transporte", descripcion: "Reserva furgoneta", importe: 200, forma: "transferencia", pagador: "bote", conceptoId: "kf" }),
+  FT.crearGastoGrupo({ id: "gk2", viajeId: "v1", categoria: "transporte", descripcion: "Pago final furgoneta", importe: 350, forma: "transferencia", pagador: "bote", conceptoId: "kf" }),
+  FT.crearGastoGrupo({ id: "gk3", viajeId: "v1", categoria: "alojamiento", descripcion: "Riad, primer pago", importe: 2700, moneda: "MAD", cambio: 10.8, forma: "transferencia", pagador: "bote", conceptoId: "kr" }),
+  FT.crearGastoGrupo({ id: "gs1", viajeId: "v1", categoria: "comidas", descripcion: "Cena sin previsión", importe: 40, forma: "metalico", pagador: "bote" }),
+];
+const ac = FT.gastoRealPorConcepto({
+  viajeId: "v1", conceptos: [conceptoFurgo, conceptoRiad], gastos: gastosConcepto, personas: 3, noches: 4,
+});
+igual(ac.kf.previsto, 600, "la furgoneta tiene 600 € previstos");
+igual(ac.kf.real, 550, "dos pagos parciales suman 550 € de gasto real");
+igual(ac.kf.nGastos, 2, "se cuentan los dos pagos ligados al concepto");
+igual(ac.kf.diferencia, -50, "queda margen de 50 € (real − previsto)");
+igual(ac.kr.real, 250, "2.700 MAD a 10,8 son 250 € de gasto real");
+igual(ac.kr.diferencia, -250, "el pago del riad deja 250 € de margen");
+igual(FT.gastoRealSinConcepto({ viajeId: "v1", gastos: gastosConcepto }), 40, "la cena sin concepto queda fuera del presupuesto");
+
+const acSinEditado = FT.gastoRealPorConcepto({
+  viajeId: "v1", conceptos: [conceptoFurgo], gastos: gastosConcepto, personas: 3, noches: 4, excluirGastoId: "gk2",
+});
+igual(acSinEditado.kf.real, 200, "al editar el segundo pago no se cuenta dos veces: solo queda el primero");
+igual(acSinEditado.kf.nGastos, 1, "y solo un pago acumulado al editar");
+
+const acSobrecoste = FT.gastoRealPorConcepto({
+  viajeId: "v1", conceptos: [conceptoFurgo],
+  gastos: [FT.crearGastoGrupo({ id: "gk9", viajeId: "v1", categoria: "transporte", descripcion: "Extra", importe: 700, forma: "metalico", pagador: "bote", conceptoId: "kf" })],
+  personas: 3, noches: 4,
+});
+igual(acSobrecoste.kf.diferencia, 100, "pasarse del presupuesto da diferencia positiva (sobrecoste)");
+
 /* ---------------- 8. mis gastos personales ---------------- */
 
 console.log("\n8. Mis gastos personales");

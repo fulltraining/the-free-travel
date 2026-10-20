@@ -16,7 +16,7 @@
 
 globalThis.FT = (function () {
   const APP = "the-free-travel";
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
 
   const MONEDA_BASE = "EUR";
   const MONEDA_PRINCIPAL = "EUR"; // moneda en la que se muestran los totales globales
@@ -560,6 +560,58 @@ globalThis.FT = (function () {
       nClientes: nClientes,
       costeMedio: nClientes > 0 ? redondear(total / nClientes, 2) : 0,
     };
+  }
+
+  /**
+   * Gasto real acumulado (en euros) por concepto del presupuesto.
+   *
+   * Devuelve, para cada concepto, cuánto se ha pagado ya en gastos reales
+   * enlazados a él y cuánto queda (o cuánto se ha pasado). Los gastos en
+   * otras monedas se comparan usando el cambio con el que se registraron.
+   *
+   * `excluirGastoId` permite no contar el gasto que se está editando, para
+   * que la previsión que se enseña no se sume a sí misma dos veces.
+   */
+  function gastoRealPorConcepto(datos) {
+    const d = datos || {};
+    const viajeId = d.viajeId;
+    const excluir = String(d.excluirGastoId || "");
+    const acumulado = {};
+
+    gastosDeViaje(d.gastos || [], viajeId).forEach((g) => {
+      if (!g.conceptoId) return;
+      if (excluir && g.id === excluir) return;
+      if (!gastoGrupoCuentaComoGasto(g)) return;
+      if (!acumulado[g.conceptoId]) acumulado[g.conceptoId] = { totalEuros: 0, nGastos: 0, gastos: [] };
+      acumulado[g.conceptoId].totalEuros = redondear(
+        acumulado[g.conceptoId].totalEuros + aEuros(g.importe, g.moneda, g.cambio), 2);
+      acumulado[g.conceptoId].nGastos += 1;
+      acumulado[g.conceptoId].gastos.push(g);
+    });
+
+    const resultado = {};
+    conceptosDeViaje(d.conceptos || [], viajeId).forEach((c) => {
+      const r = calcularConcepto(c, { personasViaje: d.personas, noches: d.noches });
+      const previsto = r.importeEuros;
+      const real = acumulado[c.id] ? acumulado[c.id].totalEuros : 0;
+      resultado[c.id] = {
+        concepto: c,
+        previsto: previsto,
+        real: real,
+        nGastos: acumulado[c.id] ? acumulado[c.id].nGastos : 0,
+        diferencia: redondear(real - previsto, 2), // + sobrecoste, − margen
+      };
+    });
+    return resultado;
+  }
+
+  /** Gasto real acumulado de un viaje que NO está enlazado a ningún concepto. */
+  function gastoRealSinConcepto(datos) {
+    const d = datos || {};
+    const excluir = String(d.excluirGastoId || "");
+    return redondear(gastosDeViaje(d.gastos || [], d.viajeId)
+      .filter((g) => !g.conceptoId && (!excluir || g.id !== excluir) && gastoGrupoCuentaComoGasto(g))
+      .reduce((s, g) => s + aEuros(g.importe, g.moneda, g.cambio), 0), 2);
   }
 
   /* ---------------- gastos reales del grupo ---------------- */
@@ -1315,6 +1367,8 @@ globalThis.FT = (function () {
     pendienteDeGastoCon: pendienteDeGastoCon,
     gastoGrupoCuentaComoGasto: gastoGrupoCuentaComoGasto,
     gastosGrupoPorCategoria: gastosGrupoPorCategoria,
+    gastoRealPorConcepto: gastoRealPorConcepto,
+    gastoRealSinConcepto: gastoRealSinConcepto,
     /* movimientos del bote */
     crearReembolso: crearReembolso,
     reembolsosDeViaje: reembolsosDeViaje,

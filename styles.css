@@ -304,6 +304,67 @@ input:focus, select:focus, textarea:focus {
 }
 
 .nota-aviso { background: #fde3dc; color: #8a2b1f; }
+.nota-vacio { background: var(--naranja-suave); color: var(--naranja-oscuro); font-weight: 600; }
+
+/* ---------------- pestañas ---------------- */
+
+.pestanas {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 12px;
+  background: var(--blanco);
+  border-radius: var(--radio);
+  padding: 6px;
+  box-shadow: var(--sombra);
+}
+
+.pestana {
+  flex: 1;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--tinta-suave);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 12px 8px;
+  cursor: pointer;
+}
+
+.pestana.activa {
+  background: var(--naranja);
+  color: var(--blanco);
+}
+
+/* ---------------- tabla de comparación ---------------- */
+
+.tabla-envoltorio { overflow-x: auto; margin-top: 10px; }
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.tabla th,
+.tabla td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--arena);
+  vertical-align: top;
+}
+
+.tabla th {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--tinta-suave);
+}
+
+.tabla .num { text-align: right; white-space: nowrap; }
+.tabla .tabla-sub { font-size: 0.76rem; color: var(--tinta-suave); }
+.tabla td.negativa { color: var(--rojo); font-weight: 700; }
+.tabla td.positiva { color: var(--verde); font-weight: 700; }
 
 /* ---------------- barra inferior ---------------- */
 

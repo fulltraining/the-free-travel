@@ -23,16 +23,28 @@ Repositorio: https://github.com/fulltraining/the-free-travel (contiene
   de clientes se calcula solo. Aportación prevista (individual o común a todos),
   aportaciones entregadas en varios ingresos, fecha automática y editable, forma
   de entrega (metálico o transferencia), y saldo pendiente o exceso aportado.
-- **Presupuesto del grupo**: conceptos por categoría (desplazamientos,
-  alojamientos, comidas, actividades y otros) con seis formas de cálculo:
-  importe total, precio por persona, por persona y noche, por habitación y
-  noche, por día o por unidad. Se muestra el cálculo antes de guardar y se
-  pueden indicar las personas que cubre cada gasto. El presupuesto y los gastos
-  reales se llevan **aparte** para no sumarlos dos veces.
-- **Gastos reales del grupo**: categoría, descripción, fecha, importe, moneda,
-  forma de pago, quién lo paga (bote, yo o un cliente) y enlace opcional con un
-  concepto del presupuesto. Si alguien adelanta dinero, se muestra el pendiente
-  de reembolso y se registra el reembolso **sin contarlo otra vez como gasto**.
+- **Gastos del grupo**, con dos pestañas bien visibles:
+  - **Presupuesto previsto**: conceptos por categoría (desplazamientos,
+    alojamientos, comidas, actividades y otros) con seis formas de cálculo:
+    importe total, precio por persona, por persona y noche, por habitación y
+    noche, por día o por unidad. Se muestra el cálculo antes de guardar, se
+    pueden indicar las personas que cubre cada gasto y se pueden editar o
+    eliminar conceptos. Bajo cada concepto se ve su **importe previsto**, el
+    **gasto real acumulado** y la **diferencia** (real − previsto: positiva es
+    sobrecoste). Si todavía no hay conceptos, aparece «Sin presupuesto
+    definido». El presupuesto y los gastos reales se llevan **aparte** para no
+    sumarlos dos veces.
+  - **Gastos reales**: categoría, descripción, fecha, importe, moneda, forma de
+    pago, quién lo paga (bote, yo o un cliente) y el campo **Concepto del
+    presupuesto**, que carga los conceptos del viaje activo mostrando
+    descripción, categoría e importe previsto (por ejemplo
+    «Minibús con conductor · Desplazamientos · Previsto: 1.200 €»). Al elegir
+    uno se ve su previsión, lo ya gastado y lo que queda o el sobrecoste, y se
+    pueden enlazar **varios pagos al mismo concepto** (una reserva y el pago
+    final). Se conserva la opción «Gasto no previsto» y, si aún no hay
+    conceptos, se avisa y se ofrece «+ Añadir concepto» sin perder lo escrito.
+    Si alguien adelanta dinero, se muestra el pendiente de reembolso y se
+    registra el reembolso **sin contarlo otra vez como gasto**.
 - **Mis gastos de viaje**: vuelos, alojamientos, comidas, desplazamientos,
   actividades y otros. Por defecto son personales y **no** se descuentan del
   bote; si marcas «cubierto por el grupo» se contabilizan una sola vez como
@@ -43,9 +55,10 @@ Repositorio: https://github.com/fulltraining/the-free-travel (contiene
   previstos − mis gastos previstos) y el **resultado real** (cobrados − gastos
   realizados), identificados como cálculos de gestión **antes de impuestos**.
 - **Resumen del viaje**: número de clientes, presupuesto, gasto real por
-  categoría, desviación, bote previsto, aportaciones recibidas y pendientes,
-  dinero disponible del bote, adelantos pendientes de reembolso, devoluciones,
-  honorarios y gastos personales.
+  categoría, sobrecoste, la tabla **previsto / real / diferencia por concepto**,
+  bote previsto, aportaciones recibidas y pendientes, dinero disponible del
+  bote, adelantos pendientes de reembolso, devoluciones, honorarios y gastos
+  personales.
 - **Distintas monedas**: euros, dírhams marroquíes y muchas más. El tipo de
   cambio se escribe siempre como «1 € = X unidades de la moneda» y **se guarda
   en cada movimiento**, así los gastos antiguos no cambian al modificar el
@@ -121,13 +134,13 @@ app** (o recargar dos veces) para que entre la versión nueva.
 Sin necesidad de navegador, con QuickJS y Python:
 
 ```sh
-qjs tests/logica.test.mjs      # cálculos y reglas de negocio (184)
+qjs tests/logica.test.mjs      # cálculos y reglas de negocio (194)
 qjs tests/db.test.mjs          # IndexedDB falso: guardar, cerrar/reabrir, importar (51)
-qjs tests/ui.test.mjs          # pantallas y flujo por acciones (144)
+qjs tests/ui.test.mjs          # pantallas, pestañas y flujo por acciones (184)
 python3 tests/estaticas.py     # PWA: archivos, manifest, service worker, colores (94)
 ```
 
-Total: **473 comprobaciones**. Las pruebas usan datos temporales propios que no
+Total: **523 comprobaciones**. Las pruebas usan datos temporales propios que no
 se guardan en la aplicación.
 
 ## Estructura
