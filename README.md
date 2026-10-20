@@ -7,6 +7,13 @@ ningún dato personal a ninguna parte.
 
 Es un proyecto **independiente** de Fulltraining y de Omniterra.
 
+## App publicada
+
+**https://fulltraining.github.io/the-free-travel/**
+
+Repositorio: https://github.com/fulltraining/the-free-travel (contiene
+**únicamente el código**; ningún dato de viajes, clientes ni movimientos).
+
 ## Qué hace
 
 - **Viajes**: crear, editar y eliminar viajes con nombre, destino, fechas,
@@ -61,10 +68,10 @@ pendientes.
 
 ## Instalarla en Android
 
-1. Abre la dirección de la app con **Chrome** en el móvil.
+1. Abre **https://fulltraining.github.io/the-free-travel/** con **Chrome** en el móvil.
 2. Espera a que cargue del todo (la primera vez necesita conexión).
-3. Toca el menú **⋮** y elige **«Añadir a pantalla de inicio»** o
-   **«Instalar aplicación»**.
+3. Toca el menú **⋮** y elige **«Instalar aplicación»** o
+   **«Añadir a pantalla de inicio»**.
 4. Confirma. Aparecerá un icono como el de cualquier aplicación.
 
 A partir de ahí, abre la app desde su icono: funciona **sin conexión** y no
@@ -86,11 +93,12 @@ crean, nunca se borran solas.
 
 ## Publicar por HTTPS
 
-El repositorio contiene **únicamente el código**. No incluyas nunca aquí copias
-con nombres de clientes ni movimientos personales.
+Ya está publicada en GitHub Pages (ver arriba). El repositorio contiene
+**únicamente el código**. No incluyas nunca aquí copias con nombres de clientes
+ni movimientos personales.
 
-Sirviendo la carpeta por HTTPS (por ejemplo GitHub Pages, o junto a otra web),
-los archivos que hay que subir son:
+Si la sirves en otro sitio (tu propio hosting), los archivos que hay que subir
+son:
 
 ```
 index.html
