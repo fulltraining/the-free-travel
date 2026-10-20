@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>The Free Travel · Gestión de viajes</title>
+  <meta name="description" content="Gestión de viajes en grupo: clientes y bote común, presupuesto, gastos reales, mis gastos, honorarios y resumen. Funciona sin conexión.">
+  <meta name="theme-color" content="#E07A2F">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="The Free Travel">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="iconos/icono-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="iconos/icono-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="cabecera">
+      <button type="button" class="cabecera-menu" id="btn-menu" aria-label="Menú">☰</button>
+      <div class="cabecera-texto">
+        <h1 class="cabecera-titulo">The Free Travel</h1>
+        <p class="cabecera-sub" id="cabecera-viaje">Gestión de viajes</p>
+      </div>
+      <button type="button" class="cabecera-aviso" id="btn-aviso" aria-label="Sin conexión" hidden>⚠</button>
+    </header>
+
+    <main class="vista" id="vista" aria-live="polite"></main>
+
+    <nav class="barra" id="barra" aria-label="Secciones">
+      <button type="button" class="barra-btn" data-accion="vista" data-valor="viajes">
+        <span class="barra-icono">🧭</span><span>Viajes</span>
+      </button>
+      <button type="button" class="barra-btn" data-accion="vista" data-valor="clientes">
+        <span class="barra-icono">👥</span><span>Clientes y bote</span>
+      </button>
+      <button type="button" class="barra-btn" data-accion="vista" data-valor="gastos">
+        <span class="barra-icono">🧾</span><span>Gastos del grupo</span>
+      </button>
+      <button type="button" class="barra-btn" data-accion="vista" data-valor="mios">
+        <span class="barra-icono">🎒</span><span>Mis gastos</span>
+      </button>
+      <button type="button" class="barra-btn" data-accion="vista" data-valor="resumen">
+        <span class="barra-icono">📊</span><span>Resumen</span>
+      </button>
+    </nav>
+  </div>
+
+  <div class="modal-fondo" id="modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+      <h2 class="modal-titulo" id="modal-titulo"></h2>
+      <div class="modal-texto" id="modal-texto"></div>
+      <div class="modal-botones" id="modal-botones"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <input type="file" id="archivo-copia" accept="application/json,.json" hidden>
+
+  <noscript>
+    <p class="aviso-noscript">Esta aplicación necesita JavaScript para funcionar.</p>
+  </noscript>
+
+  <script src="js/logica.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
